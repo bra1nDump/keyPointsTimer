@@ -28,7 +28,7 @@ class AppState extends State<App> with TickerProviderStateMixin {
 
   AnimationController _controller;
 
-  static const unitHeight = 40;
+  static const unitHeight = 60;
 
   @override
   void initState() {
@@ -42,41 +42,88 @@ class AppState extends State<App> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void resetAnimationAndStart() {
-    setState(() {
-      var seconds = durationOfFirst(_keyPoints.length);
-      _controller?.dispose();
-      _controller = AnimationController(
-          duration: Duration(seconds: seconds),
-          upperBound: seconds.toDouble(),
-          vsync: this
-      )
-        ..forward();
+  void resetAnimationController() {
+    var seconds = durationOfFirst(_keyPoints.length);
+    _controller?.dispose();
+    _controller = AnimationController(
+        duration: Duration(seconds: seconds),
+        upperBound: seconds.toDouble(),
+        vsync: this
+    );
+  }
 
+  void startPresentation() {
+    setState(() {
       _controller.addStatusListener((AnimationStatus status) {
         if (status == AnimationStatus.completed)
           setState(() {
             _state = KeyPointsState.stopped;
           });
       });
+      _controller.forward();
+      _state = KeyPointsState.presenting;
     });
   }
 
   int durationOfFirst(int index) =>
-    _keyPoints
-        .take(index)
-        .fold(0, (acc, keyPoint) => acc + keyPoint.seconds);
+      _keyPoints.take(index).fold(0, (acc, keyPoint) => acc + keyPoint.seconds);
 
   Widget keyPointBuild(int index, KeyPoint keyPoint) {
+    var actionMenu =
+        Row(
+          children: <Widget>[
+            MaterialButton(
+                color: Colors.grey,
+                onPressed: () {
+                  if (_state != KeyPointsState.adding) {
+                    setState(() {
+                      var point = _keyPoints[index];
+                      if (point.seconds > 10) {
+                        point.seconds = point.seconds - 10;
+                        resetAnimationController();
+                      }
+                    });
+                  }
+                },
+                child: Text('-10s')
+            ),
+            Padding(padding: EdgeInsets.all(8)),
+            MaterialButton(
+                color: Colors.grey,
+                onPressed: () {
+                  if (_state != KeyPointsState.adding) {
+                    setState(() {
+                      _keyPoints[index].seconds = _keyPoints[index].seconds + 10;
+                      resetAnimationController();
+                    });
+                  }
+                },
+                child: Text('+10s')
+            ),
+            Padding(padding: EdgeInsets.all(8)),
+            IconButton(
+                onPressed: () {
+                  setState(() {
+                    _keyPoints.removeAt(index);
+                  });
+                },
+                icon: Icon(Icons.delete)
+            )
+          ],
+        );
+
     return AnimatedBuilder(
         animation: _controller,
         child: Container(
           height: unitHeight * (keyPoint.seconds / 10),
           padding: const EdgeInsets.all(8.0),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Expanded(child: Text(keyPoint.text)),
-              Text('${keyPoint.seconds} sec'),
+              if (_state == KeyPointsState.ready)
+                actionMenu,
             ],
           ),
         ),
@@ -102,8 +149,10 @@ class AppState extends State<App> with TickerProviderStateMixin {
       yield GestureDetector(
         key: Key(index.toString()),
         onTap: () => setState(() {
-          if (_state != KeyPointsState.adding)
+          if (_state != KeyPointsState.adding) {
             _keyPoints[index].seconds = _keyPoints[index].seconds + 10;
+            resetAnimationController();
+          }
         }),
         child: Card(
           margin: EdgeInsets.all(5),
@@ -119,6 +168,7 @@ class AppState extends State<App> with TickerProviderStateMixin {
       _keyPoints.add(_newKeyPoint);
       _newKeyPoint = null;
       _state = KeyPointsState.ready;
+      resetAnimationController();
     });
   }
 
@@ -147,10 +197,25 @@ class AppState extends State<App> with TickerProviderStateMixin {
                     });
                   },
                   child: Icon(Icons.add),
+                ),
+          body: Column(children: <Widget>[
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (BuildContext context, Widget child) {
+                  var duration = Duration(seconds: durationOfFirst(_keyPoints.length));
+                  var elapsed = Duration(seconds: _controller.value.floor());
+                  var remaining = duration - elapsed;
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      '${remaining.inMinutes % 60}m ${remaining.inSeconds % 60}s',
+                      style: TextStyle(
+                        fontSize: 40
+                      ),
+                    ),
+                  );
+                }
               ),
-          body: GestureDetector(
-            onTap: saveNewKeyPoint,
-            child: Column(children: <Widget>[
               Expanded(
                 child: ReorderableListView(
                     onReorder: (oldIndex, newIndex) {
@@ -163,8 +228,10 @@ class AppState extends State<App> with TickerProviderStateMixin {
               ),
               if (_state == KeyPointsState.adding)
                 TextFormField(
+                  key: Key(_keyPoints.length.toString()),
                   initialValue: _newKeyPoint.text,
-                  onChanged: (newValue) => setState(() => _newKeyPoint.text = newValue),
+                  onChanged: (newValue) =>
+                      setState(() => _newKeyPoint.text = newValue),
                   onEditingComplete: saveNewKeyPoint,
                   autofocus: true,
                 ),
@@ -172,12 +239,9 @@ class AppState extends State<App> with TickerProviderStateMixin {
                 MaterialButton(
                   color: Colors.green,
                   child: Text('Start'),
-                  onPressed: () => setState(() {
-                    _state = KeyPointsState.presenting;
-                    resetAnimationAndStart();
-                  }),
-                )
-              else if (_state == KeyPointsState.presenting)
+                  onPressed: startPresentation
+                ),
+              if (_state == KeyPointsState.presenting)
                 MaterialButton(
                   color: Colors.red,
                   child: Text('Stop'),
@@ -185,20 +249,30 @@ class AppState extends State<App> with TickerProviderStateMixin {
                     _state = KeyPointsState.stopped;
                     _controller.stop();
                   }),
-                )
-              else if (_state == KeyPointsState.stopped)
-                MaterialButton(
-                  color: Colors.grey,
-                  child: Text('Reset'),
-                  onPressed: () {
-                    setState(() {
-                      _controller.reset();
-                      _state = KeyPointsState.ready;
-                    });
-                  }),
+                ),
+              if (_state == KeyPointsState.stopped)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    MaterialButton(
+                        color: Colors.green,
+                        child: Text('Start'),
+                        onPressed: startPresentation
+                    ),
+                    Padding(padding: EdgeInsets.all(10)),
+                    MaterialButton(
+                        color: Colors.red,
+                        child: Text('Reset'),
+                        onPressed: () =>
+                            setState(() {
+                              _controller.reset();
+                              _state = KeyPointsState.ready;
+                            })
+                    )
+                  ]
+                ),
             ]),
-          )
-      ),
+          ),
     );
   }
 }
