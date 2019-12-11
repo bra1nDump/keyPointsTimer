@@ -1,16 +1,17 @@
-# keypoint_timer
+# Key Points Timer
 
-A new Flutter application.
+## My problem
 
-## Getting Started
+* When I give a weekly update during one of my meetups I am all over the place
+* Even when I make key points that I want to touch on - I usually fail with timing
 
-This project is a starting point for a Flutter application.
+## Solution
 
-A few resources to get you started if this is your first Flutter project:
+* Easily edit a list of key points
+* Allocate time for each key point
+* Visualy assist the presenter with the timing of the presentation
 
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
+## Why Flutter
 
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+* Reuse code for iOS/Android/Web
+* Want to use the framework at my next job
